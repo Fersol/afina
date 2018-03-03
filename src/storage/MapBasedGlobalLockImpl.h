@@ -1,11 +1,13 @@
 #ifndef AFINA_STORAGE_MAP_BASED_GLOBAL_LOCK_IMPL_H
 #define AFINA_STORAGE_MAP_BASED_GLOBAL_LOCK_IMPL_H
 
+#include <functional>
+#include <list>
 #include <map>
 #include <mutex>
 #include <string>
 
-#include <afina/Storage.h>
+#include "../../include/afina/Storage.h"
 
 namespace Afina {
 namespace Backend {
@@ -15,10 +17,35 @@ namespace Backend {
  *
  *
  */
+class Node {
+public:
+    std::string key;
+    std::string value;
+    Node *next;
+    Node *prev;
+};
+
+class Dlink_list {
+public:
+    Dlink_list();
+    ~Dlink_list();
+    void push_front(std::string, std::string);
+    void pop_back();
+    void del_front();
+    void move_to_front(Node *);
+    //void print();
+    Node *front();
+    Node *back();
+
+private:
+    Node *head;
+    Node *tail;
+};
+
 class MapBasedGlobalLockImpl : public Afina::Storage {
 public:
-    MapBasedGlobalLockImpl(size_t max_size = 1024) : _max_size(max_size) {}
-    ~MapBasedGlobalLockImpl() {}
+    MapBasedGlobalLockImpl(size_t max_size = 1024) : _max_size(max_size), _size(0), _list(new Dlink_list()) {}
+    ~MapBasedGlobalLockImpl() {delete(_list);}
 
     // Implements Afina::Storage interface
     bool Put(const std::string &key, const std::string &value) override;
@@ -35,9 +62,19 @@ public:
     // Implements Afina::Storage interface
     bool Get(const std::string &key, std::string &value) const override;
 
+    bool get_value_if_exists(const std::string &key, std::string &value);
+
 private:
     size_t _max_size;
-    std::map<std::string, std::string> _backend;
+    size_t _size;
+    mutable std::mutex _lock;
+    //mutable std::list<std::pair<std::string, std::string>> _list;
+    //std::map<std::reference_wrapper<const std::string>, decltype(_list)::iterator, std::less<const std::string>>_backend;
+    
+    Dlink_list *_list;
+    std::map<std::reference_wrapper<const std::string>, Node *, std::less<const std::string>>_backend;
+
+    
 };
 
 } // namespace Backend
