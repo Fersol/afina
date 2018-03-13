@@ -1,6 +1,9 @@
 #ifndef AFINA_NETWORK_BLOCKING_SERVER_H
 #define AFINA_NETWORK_BLOCKING_SERVER_H
 
+
+#include <tuple>
+
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
@@ -12,6 +15,7 @@
 namespace Afina {
 namespace Network {
 namespace Blocking {
+
 
 /**
  * # Network resource manager implementation
@@ -38,15 +42,21 @@ protected:
     void RunAcceptor();
 
     /**
-     * Methos is running for each connection
+     * Method is running for each connection
      */
-    void RunConnection();
+    void RunConnection(int);
 
+    static void *RunConnectionProxy(void *p);
 private:
+    using RunConnectionProxyArgs = std::tuple<ServerImpl *, int>;
+
     static void *RunAcceptorProxy(void *p);
 
+    static std::string ReadData(int, std::string&);
+ 
+
     // Atomic flag to notify threads when it is time to stop. Note that
-    // flag must be atomic in order to safely publisj changes cross thread
+    // flag must be atomic in order to safely publish changes cross thread
     // bounds
     std::atomic<bool> running;
 

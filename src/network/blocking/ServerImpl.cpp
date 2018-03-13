@@ -1,4 +1,10 @@
 #include "ServerImpl.h"
+#include "../../protocol/Parser.h"
+#include <afina/execute/Command.h>
+
+
+#include <sstream>
+#include <algorithm>
 
 #include <cassert>
 #include <cstring>
@@ -23,15 +29,32 @@ namespace Afina {
 namespace Network {
 namespace Blocking {
 
-void *ServerImpl::RunAcceptorProxy(void *p) {
-    ServerImpl *srv = reinterpret_cast<ServerImpl *>(p);
+static const ssize_t BUF_SIZE = 2;
+
+void *ServerImpl::RunConnectionProxy(void *p) {
+    ServerImpl *srv;
+    int client_socket;
+
+    auto args = reinterpret_cast<RunConnectionProxyArgs *>(p);
+    std::tie(srv, client_socket) = *args;
+    //delete args;
+
     try {
-        srv->RunAcceptor();
+        srv->RunConnection(client_socket);
     } catch (std::runtime_error &ex) {
         std::cerr << "Server fails: " << ex.what() << std::endl;
     }
+
+    
+    close(client_socket);
+    std::lock_guard<std::mutex> lock(srv->connections_mutex);
+    srv->connections.erase(pthread_self());
+    
+
     return 0;
 }
+
+
 
 // See Server.h
 ServerImpl::ServerImpl(std::shared_ptr<Afina::Storage> ps) : Server(ps) {}
@@ -85,6 +108,7 @@ void ServerImpl::Start(uint32_t port, uint16_t n_workers) {
     if (pthread_create(&accept_thread, NULL, ServerImpl::RunAcceptorProxy, this) < 0) {
         throw std::runtime_error("Could not create server thread");
     }
+
 }
 
 // See Server.h
@@ -97,6 +121,16 @@ void ServerImpl::Stop() {
 void ServerImpl::Join() {
     std::cout << "network debug: " << __PRETTY_FUNCTION__ << std::endl;
     pthread_join(accept_thread, 0);
+}
+
+void *ServerImpl::RunAcceptorProxy(void *p) {
+    ServerImpl *srv = reinterpret_cast<ServerImpl *>(p);
+    try {
+        srv->RunAcceptor();
+    } catch (std::runtime_error &ex) {
+        std::cerr << "Server fails: " << ex.what() << std::endl;
+    }
+    return 0;
 }
 
 // See Server.h
@@ -166,31 +200,112 @@ void ServerImpl::RunAcceptor() {
         // When an incoming connection arrives, accept it. The call to accept() blocks until
         // the incoming connection arrives
         if ((client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &sinSize)) == -1) {
-            close(server_socket);
+            close(client_socket);
             throw std::runtime_error("Socket accept() failed");
         }
-
-        // TODO: Start new thread and process data from/to connection
-        {
-            std::string msg = "TODO: start new thread and process memcached protocol instead";
-            if (send(client_socket, msg.data(), msg.size(), 0) <= 0) {
+           
+        {   
+            std::lock_guard<std::mutex> lock(connections_mutex);
+            if (connections.size() < max_workers){
+                pthread_t worker;
+                auto args = new RunConnectionProxyArgs(this, client_socket);
+                if (pthread_create(&worker, NULL, ServerImpl::RunConnectionProxy, args) < 0) {
+                    throw std::runtime_error("Could not create server thread");
+                }
+                connections.insert(worker);
+            } 
+            else {
                 close(client_socket);
-                close(server_socket);
-                throw std::runtime_error("Socket send() failed");
             }
-            close(client_socket);
         }
-    }
 
+    }
+    
+    while(connections.size() != 0){}
     // Cleanup on exit...
     close(server_socket);
 }
 
 // See Server.h
-void ServerImpl::RunConnection() {
+void ServerImpl::RunConnection(int client_socket) {
     std::cout << "network debug: " << __PRETTY_FUNCTION__ << std::endl;
-    // TODO: All connection work is here
+    char buf[BUF_SIZE];
+    Protocol::Parser parser;
+
+    ssize_t buf_readed;
+
+    while ((buf_readed = recv(client_socket, buf, BUF_SIZE, 0)) > 0) {
+        uint32_t body_size;
+
+        size_t parsed;
+        while (parser.Parse(buf, buf_readed, parsed)) {
+            
+            
+            auto command = parser.Build(body_size);
+            //write start of value to args
+            std::string args;
+            for(auto pos = parsed; pos < buf_readed; pos++){
+                args.push_back(buf[pos]);
+            } 
+
+            ReadData(client_socket, args); 
+
+            //std::cout << "args:" << args << std::endl;
+            //for(auto it = parser.keys.begin(), it != parser.keys.end(); it++){
+             //   args += *it + " ";
+           // }
+            std::string out;
+   
+            try {
+                command->Execute(*pStorage, args, out);
+                out += "\r\n";
+            } catch (std::runtime_error &ex) {
+                out = std::string("SERVER_ERROR ") + ex.what() + "\r\n";
+            }
+
+            if (send(client_socket, out.c_str(), out.size(), 0) <= 0) {
+                throw std::runtime_error("Socket send() failed");
+            }
+
+            parser.Reset();
+        }
+    }
+
+    if (buf_readed == -1) {
+        throw std::runtime_error("Socket recv() failed");
+    }
 }
+
+
+std::string ServerImpl::ReadData(int client_socket, std::string& args) {
+  size_t pos;
+  //size_t skip = 0;  // \r\n
+  char buf[BUF_SIZE];
+  ssize_t buf_readed; 
+  bool isend = false;
+  while ((buf_readed = recv(client_socket, buf, BUF_SIZE, 0)) > 0) {
+    for (pos = 0; pos < buf_readed; pos++) {
+          char c = buf[pos];
+          std::cout << c;
+          if (!isend){
+            if (c == '\r'){
+              isend = true;
+            }
+            else{
+              args.push_back(c);
+            }
+          }
+          else{
+            if (c == '\n'){
+              break;
+            }
+          }
+        
+    }   
+  }
+}
+
+
 
 } // namespace Blocking
 } // namespace Network
