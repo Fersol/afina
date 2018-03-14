@@ -211,6 +211,7 @@ void ServerImpl::RunAcceptor() {
                 pthread_t worker;
                 auto args = new RunConnectionProxyArgs(this, client_socket);
                 if (pthread_create(&worker, NULL, ServerImpl::RunConnectionProxy, args) < 0) {
+                    if (server.state != Run) {break};
                     throw std::runtime_error("Could not create server thread");
                 }
                 connections.insert(worker);
@@ -240,20 +241,23 @@ void ServerImpl::RunConnection(int client_socket) {
 
     while ((buf_readed = recv(client_socket, buf, BUF_SIZE, 0)) > 0) {
         uint32_t body_size;
-
+        //std::cout << "bufin:" << buf << "|" <<std::endl;
         size_t parsed;
-        while (parser.Parse(buf, buf_readed, parsed)) {
+        if (parser.Parse(buf, buf_readed, parsed)) {
             
             
             auto command = parser.Build(body_size);
+            //std::cout << "build:" << body_size << "\n";
             //write start of value to args
             std::string args;
             for(auto pos = parsed; body_size >0 &&  pos < buf_readed; pos++){
                 args.push_back(buf[pos]);
                 body_size--;
             } 
-
-            ReadData(client_socket, args, body_size); 
+            //std::cout << "argsfirst:" << args << std::endl;
+            if (body_size > 0){
+              ReadData(client_socket, args, body_size); 
+            }
         
             //std::cout << "args:" << args << std::endl;
             //for(auto it = parser.keys.begin(), it != parser.keys.end(); it++){
@@ -271,7 +275,7 @@ void ServerImpl::RunConnection(int client_socket) {
             if (send(client_socket, out.c_str(), out.size(), 0) <= 0) {
                 throw std::runtime_error("Socket send() failed");
             }
-
+            //std::cout << "prereset" << std::endl;
             parser.Reset();
         }
     }
@@ -287,8 +291,11 @@ std::string ServerImpl::ReadData(int client_socket, std::string& args, uint32_t&
   //size_t skip = 0;  // \r\n
   char buf[BUF_SIZE];
   ssize_t buf_readed; 
-  
-  while ((buf_readed = recv(client_socket, buf, BUF_SIZE, 0)) > 0) {
+  bool isend = false;
+  //std::cout << "readdata: " << std::endl;
+
+  while (!isend && (buf_readed = recv(client_socket, buf, BUF_SIZE, 0)) > 0) {
+    //std::cout << "buf:" << args << "size: "<< buf_readed << std::endl;
     for (pos = 0; pos < buf_readed; pos++) {
           char c = buf[pos];
           if (body_size > 0){
@@ -296,13 +303,15 @@ std::string ServerImpl::ReadData(int client_socket, std::string& args, uint32_t&
               body_size--;
           }
           else{
+            //std::cout << "c:" << int(c) << std::endl;
             if (c == '\n'){
+                isend = true;
               break;
             }
           }
-        
-    }   
+    }  
   }
+  //std::cout << "args:" << args <<std::endl;
 }
 
 
