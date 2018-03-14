@@ -244,13 +244,13 @@ void ServerImpl::RunConnection(int client_socket) {
             auto command = parser.Build(body_size);
             //write start of value to args
             std::string args;
-            if(body_size > 0){
-                for(auto pos = parsed; pos < buf_readed; pos++){
-                    args.push_back(buf[pos]);
-                } 
+            for(auto pos = parsed; body_size >0 &&  pos < buf_readed; pos++){
+                args.push_back(buf[pos]);
+                body_size--;
+            } 
 
-                ReadData(client_socket, args); 
-            }
+            ReadData(client_socket, args, body_size); 
+        
             //std::cout << "args:" << args << std::endl;
             //for(auto it = parser.keys.begin(), it != parser.keys.end(); it++){
              //   args += *it + " ";
@@ -278,22 +278,18 @@ void ServerImpl::RunConnection(int client_socket) {
 }
 
 
-std::string ServerImpl::ReadData(int client_socket, std::string& args) {
+std::string ServerImpl::ReadData(int client_socket, std::string& args, uint32_t& body_size) {
   size_t pos;
   //size_t skip = 0;  // \r\n
   char buf[BUF_SIZE];
   ssize_t buf_readed; 
-  bool isend = false;
+  
   while ((buf_readed = recv(client_socket, buf, BUF_SIZE, 0)) > 0) {
     for (pos = 0; pos < buf_readed; pos++) {
           char c = buf[pos];
-          if (!isend){
-            if (c == '\r'){
-              isend = true;
-            }
-            else{
+          if (body_size > 0){
               args.push_back(c);
-            }
+              body_size--;
           }
           else{
             if (c == '\n'){

@@ -52,7 +52,7 @@ private:
 
     static void *RunAcceptorProxy(void *p);
 
-    static std::string ReadData(int, std::string&);
+    static std::string ReadData(int, std::string&, uint32_t&);
  
 
     // Atomic flag to notify threads when it is time to stop. Note that
