@@ -75,7 +75,7 @@ private:
 
     // Mutex used to access connections list
     std::mutex connections_mutex;
-
+    std::mutex end_mutex;
     // Conditional variable used to notify waiters about empty
     // connections list
     std::condition_variable connections_cv;
@@ -83,6 +83,9 @@ private:
     // Threads that are processing connection data, permits
     // access only from inside of accept_thread
     std::unordered_set<pthread_t> connections;
+
+    
+    int server_socket;
 };
 
 } // namespace Blocking

@@ -47,9 +47,9 @@ void *ServerImpl::RunConnectionProxy(void *p) {
 
     
     close(client_socket);
-    std::lock_guard<std::mutex> lock(srv->connections_mutex);
+    std::unique_lock<std::mutex> lock(srv->connections_mutex);
     srv->connections.erase(pthread_self());
-    
+    srv->connections_cv.notify_all();
 
     return 0;
 }
@@ -115,6 +115,7 @@ void ServerImpl::Start(uint32_t port, uint16_t n_workers) {
 void ServerImpl::Stop() {
     std::cout << "network debug: " << __PRETTY_FUNCTION__ << std::endl;
     running.store(false);
+    shutdown(server_socket, SHUT_RDWR);
 }
 
 // See Server.h
@@ -157,7 +158,7 @@ void ServerImpl::RunAcceptor() {
     // - Family: IPv4
     // - Type: Full-duplex stream (reliable)
     // - Protocol: TCP
-    int server_socket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    server_socket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (server_socket == -1) {
         throw std::runtime_error("Failed to open socket");
     }
@@ -220,8 +221,11 @@ void ServerImpl::RunAcceptor() {
         }
 
     }
-    
-    while(connections.size() != 0){}
+
+    std::unique_lock<std::mutex> lock(connections_mutex);
+    while(connections.size() != 0){
+      connections_cv.wait(lock);
+    }
     // Cleanup on exit...
     close(server_socket);
 }
