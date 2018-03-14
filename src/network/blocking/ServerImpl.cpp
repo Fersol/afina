@@ -244,12 +244,13 @@ void ServerImpl::RunConnection(int client_socket) {
             auto command = parser.Build(body_size);
             //write start of value to args
             std::string args;
-            for(auto pos = parsed; pos < buf_readed; pos++){
-                args.push_back(buf[pos]);
-            } 
+            if(body_size > 0){
+                for(auto pos = parsed; pos < buf_readed; pos++){
+                    args.push_back(buf[pos]);
+                } 
 
-            ReadData(client_socket, args); 
-
+                ReadData(client_socket, args); 
+            }
             //std::cout << "args:" << args << std::endl;
             //for(auto it = parser.keys.begin(), it != parser.keys.end(); it++){
              //   args += *it + " ";
