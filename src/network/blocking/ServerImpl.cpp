@@ -286,7 +286,6 @@ std::string ServerImpl::ReadData(int client_socket, std::string& args) {
   while ((buf_readed = recv(client_socket, buf, BUF_SIZE, 0)) > 0) {
     for (pos = 0; pos < buf_readed; pos++) {
           char c = buf[pos];
-          std::cout << c;
           if (!isend){
             if (c == '\r'){
               isend = true;
