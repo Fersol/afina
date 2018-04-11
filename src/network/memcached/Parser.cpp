@@ -24,7 +24,7 @@ bool Parser::Parse(const char *input, const size_t size, size_t &parsed) {
     bool parse_complete = false;
     for (pos = 0; pos < size && !parse_complete; pos++) {
         char c = input[pos];
-
+        std::cout << "char:" << c << "|" <<  int(c) << std::endl; 
         switch (state) {
         case State::sName: {
             if (c == ' ') {

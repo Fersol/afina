@@ -30,6 +30,8 @@ public:
     // See Server.h
     void Join() override;
 
+    void addFIFO(const std::string _rfifo);
+
 private:
     // Port to listen for new connections, permits access only from
     // inside of accept_thread
@@ -38,6 +40,8 @@ private:
 
     // Thread that is accepting new connections
     std::vector<Worker> workers;
+
+    std::string rfifo;
 };
 
 } // namespace NonBlocking

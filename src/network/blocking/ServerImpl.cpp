@@ -211,7 +211,7 @@ void ServerImpl::RunAcceptor() {
                 pthread_t worker;
                 auto args = new RunConnectionProxyArgs(this, client_socket);
                 if (pthread_create(&worker, NULL, ServerImpl::RunConnectionProxy, args) < 0) {
-                    if (server.state != Run) {break};
+                    //if (server.state != Run) {break;}
                     throw std::runtime_error("Could not create server thread");
                 }
                 connections.insert(worker);

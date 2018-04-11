@@ -6,6 +6,7 @@
 #include <memory>
 #include <stdexcept>
 
+#include <atomic>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -71,6 +72,10 @@ void ServerImpl::Start(uint32_t port, uint16_t n_workers) {
         close(server_socket);
         throw std::runtime_error("Socket listen() failed");
     }
+    
+    workers.emplace_back(pStorage);
+    workers.front().enableFIFO(rfifo);
+    workers.front().Start(server_socket);
 
     for (int i = 0; i < n_workers; i++) {
         workers.emplace_back(pStorage);
@@ -83,6 +88,7 @@ void ServerImpl::Stop() {
     std::cout << "network debug: " << __PRETTY_FUNCTION__ << std::endl;
     for (auto &worker : workers) {
         worker.Stop();
+        pthread_detach(worker.thread);
     }
 }
 
@@ -92,6 +98,11 @@ void ServerImpl::Join() {
     for (auto &worker : workers) {
         worker.Join();
     }
+}
+
+void ServerImpl::addFIFO(const std::string _rfifo) {
+    std::cout << "network debug: " << __PRETTY_FUNCTION__ << std::endl;
+    rfifo = _rfifo;
 }
 
 } // namespace NonBlocking

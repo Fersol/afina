@@ -1,0 +1,19 @@
+issue_1:
+  stop - access can be blocked, no one coonection come, but server need to shutdown - is solution
+
+issue_2:
+  on the exit server doesn't wait for other threads
+  sol:
+    active wait
+
+issue_3:
+  read data by one symvols, wait for \r\n
+
+issue_4:
+  telnet deliver command after connection close ???
+
+issue_5:
+  cmake in networking add Executor.cpp
+
+issue_6:
+  wrong command: process
