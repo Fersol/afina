@@ -30,7 +30,7 @@ public:
     // See Server.h
     void Join() override;
 
-    void addFIFO(const std::string _rfifo);
+    void addFIFO(const std::string _rfifo) override;
 
 private:
     // Port to listen for new connections, permits access only from

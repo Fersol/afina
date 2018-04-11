@@ -56,23 +56,31 @@ void ServerImpl::Start(uint32_t port, uint16_t n_workers) {
         throw std::runtime_error("Failed to open socket");
     }
 
-    int opts = 1;
+    /*int opts = 1;
     if (setsockopt(server_socket, SOL_SOCKET, 0, &opts, sizeof(opts)) == -1) {
         close(server_socket);
         throw std::runtime_error("Socket setsockopt() failed");
     }
-
+*/
     if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
         close(server_socket);
         throw std::runtime_error("Socket bind() failed");
     }
 
     make_socket_non_blocking(server_socket);
-    if (listen(server_socket, 5) == -1) {
+    if (listen(server_socket, 7) == -1) {
         close(server_socket);
         throw std::runtime_error("Socket listen() failed");
     }
     
+    /* Be careful!! Must do .reserve(n_workers)!
+ +     * If we create new thread in Start() and use Worker::OnRun() for this thread,
+ +     * there will be a heap-use-after-free, because emplace_back will reallocate
+ +     * memory after few calls, and some Worker::OnRun will use old memory, so we
+ +     * should reserve memory, in order not to reallocated it
+ +     */
+     workers.reserve(n_workers);
+
     workers.emplace_back(pStorage);
     workers.front().enableFIFO(rfifo);
     workers.front().Start(server_socket);
